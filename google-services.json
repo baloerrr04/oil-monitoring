@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "78949519866",
+    "firebase_url": "https://minyak-ok-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "minyak-ok",
+    "storage_bucket": "minyak-ok.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:78949519866:android:b9c9b7ee65b005692d5443",
+        "android_client_info": {
+          "package_name": "com.akbaradityah.minyak_ok2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCN5tbGCIBggoqrveMCYN10GjgFdfBCCeo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
