@@ -1,8 +1,10 @@
 import { AuthContext } from "@/context/auth-context";
 import { database } from "@/lib/firebase";
-import { Riwayat } from "@/lib/types";
+import { Riwayat, RiwayatData } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
-import { onValue, ref, remove, set } from "firebase/database";
+import axios from "axios";
+import { onValue, push, ref, remove, set } from "firebase/database";
+import registerNNPushToken from "native-notify";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -32,10 +34,85 @@ export default function Home() {
   const { logout } = useContext(AuthContext);
   const notifiedRef = useRef(false);
 
+  registerNNPushToken(29958, "DWbdXJaDAApTWVofAJH8Ie");
+
+  // Update header title when alatStatus changes
   useEffect(() => {
     const alatRef = ref(database, "alat");
     const unsubscribe = onValue(alatRef, (snapshot) => {
       setAlatStatus(snapshot.val() || "off");
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const dataRef = ref(database, "data");
+    let timeout: NodeJS.Timeout | null = null;
+
+    const unsubscribe = onValue(dataRef, (snapshot) => {
+      const newData = snapshot.val() || {
+        r: 0,
+        g: 0,
+        b: 0,
+        ldr: 0,
+        ph: 0,
+        status: "",
+      };
+      setData(newData);
+
+      const statusLower = newData.status.toLowerCase();
+      if (statusLower === "tidak layak" && !notifiedRef.current) {
+        axios.post("https://app.nativenotify.com/api/indie/notification", {
+          subID: "minyak_ok2004",
+          appId: 29958,
+          appToken: "DWbdXJaDAApTWVofAJH8Ie",
+          title: "Peringatan Minyak",
+          message: "Minyak anda sudah beberapa kali pakai, segera ganti",
+        });
+        notifiedRef.current = true;
+
+        setTimeout(() => {
+          notifiedRef.current = false;
+        }, 5 * 60 * 1000);
+      }
+
+      if (alatStatus === "on") {
+        setPhSeries((prev) => [...prev, newData.ph].slice(-12));
+        setLdrSeries((prev) => [...prev, newData.ldr].slice(-12));
+
+        timeout = setTimeout(() => {
+          const riwayatRef = ref(database, "riwayat");
+          push(riwayatRef, {
+            ...newData,
+            timestamp: new Date().toISOString(),
+          }).then(() => {
+            set(ref(database, "alat"), "off");
+          });
+        }, 60000);
+      } else {
+        setPhSeries([]);
+        setLdrSeries([]);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      if (timeout) clearTimeout(timeout); // ✅ Hapus timeout saat unmount
+    };
+  }, []);
+
+  // Listen to riwayat updates
+  useEffect(() => {
+    const riwayatRef = ref(database, "riwayat");
+    const unsubscribe = onValue(riwayatRef, (snapshot) => {
+      const riwayatData: Record<string, RiwayatData> | null = snapshot.val();
+      const historyArray: Riwayat[] = riwayatData
+        ? Object.entries(riwayatData).map(([id, value]) => ({
+            id,
+            ...value,
+          }))
+        : [];
+      setHistory(historyArray);
     });
     return () => unsubscribe();
   }, []);
@@ -123,29 +200,6 @@ export default function Home() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.text}>Riwayat Pembacaan</Text>
-        {history.map((item) => (
-          <View key={item.id} style={styles.historyItem}>
-            <View style={styles.historyContent}>
-              <Text>
-                R: {item.r}, G: {item.g}, B: {item.b}
-              </Text>
-              <Text>
-                LDR: {item.ldr}, pH: {item.ph}
-              </Text>
-              <Text>Status: {item.status}</Text>
-              <Text>Time: {new Date(item.timestamp).toLocaleString()}</Text>
-            </View>
-            <View style={{ marginTop: 20 }}>
-              <TouchableOpacity onPress={() => handleDeleteRiwayat(item.id)}>
-                <Ionicons name="trash" size={24} color="red" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-      </View>
-
-       <View style={styles.section}>
         <Text style={styles.text}>Grafik RGB</Text>
         <LineChart
           data={chartDataRGB}
@@ -234,6 +288,29 @@ export default function Home() {
             borderRadius: 16,
           }}
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.text}>Riwayat Pembacaan</Text>
+        {history.map((item) => (
+          <View key={item.id} style={styles.historyItem}>
+            <View style={styles.historyContent}>
+              <Text>
+                R: {item.r}, G: {item.g}, B: {item.b}
+              </Text>
+              <Text>
+                LDR: {item.ldr}, pH: {item.ph}
+              </Text>
+              <Text>Status: {item.status}</Text>
+              <Text>Time: {new Date(item.timestamp).toLocaleString()}</Text>
+            </View>
+            <View style={{ marginTop: 20 }}>
+              <TouchableOpacity onPress={() => handleDeleteRiwayat(item.id)}>
+                <Ionicons name="trash" size={24} color="red" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
       </View>
 
       <View style={styles.section}>
