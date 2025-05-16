@@ -28,11 +28,11 @@
     "plugins": [
       "expo-router",
       [
-         "expo-notifications",
-         {
-             "icon": "./assets/images/adaptive-icon.png",
-             "color": "#ffffff"
-         }
+        "expo-notifications",
+        {
+          "icon": "./assets/images/adaptive-icon.png",
+          "color": "#ffffff"
+        }
       ],
       [
         "expo-splash-screen",
@@ -50,9 +50,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "74975067-bf97-4b09-808f-076377407d31"
+        "projectId": "855d6171-ac49-490e-a8a6-eb7d30cd7a17"
       }
     },
-    "owner": "akbaradityah"
+    "owner": "adityahakbar"
   }
 }

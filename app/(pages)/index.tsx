@@ -4,19 +4,18 @@ import { Riwayat, RiwayatData } from "@/lib/types";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import { onValue, push, ref, remove, set } from "firebase/database";
-import registerNNPushToken from "native-notify";
+import registerNNPushToken, { unregisterIndieDevice } from "native-notify";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
-  Dimensions,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { LineChart } from "react-native-chart-kit";
+import { LineChart } from "react-native-gifted-charts";
+import styles from "./css/style";
 
 export default function Home() {
   const [alatStatus, setAlatStatus] = useState("off");
@@ -29,6 +28,7 @@ export default function Home() {
     status: "",
   });
   const [history, setHistory] = useState<Riwayat[]>([]);
+  const [chartHistory, setChartHistory] = useState<Riwayat[]>([]);
   const [phSeries, setPhSeries] = useState<number[]>([]);
   const [ldrSeries, setLdrSeries] = useState<number[]>([]);
   const { logout } = useContext(AuthContext);
@@ -36,7 +36,6 @@ export default function Home() {
 
   registerNNPushToken(29958, "DWbdXJaDAApTWVofAJH8Ie");
 
-  // Update header title when alatStatus changes
   useEffect(() => {
     const alatRef = ref(database, "alat");
     const unsubscribe = onValue(alatRef, (snapshot) => {
@@ -76,11 +75,13 @@ export default function Home() {
         }, 5 * 60 * 1000);
       }
 
+      console.log(new Date("2025-05-12T07:03:13.496Z").toLocaleString());
+
       if (alatStatus === "on") {
         setPhSeries((prev) => [...prev, newData.ph].slice(-12));
         setLdrSeries((prev) => [...prev, newData.ldr].slice(-12));
 
-        timeout = setTimeout(() => {
+        const timeout = setTimeout(() => {
           const riwayatRef = ref(database, "riwayat");
           push(riwayatRef, {
             ...newData,
@@ -113,6 +114,7 @@ export default function Home() {
           }))
         : [];
       setHistory(historyArray);
+      setChartHistory(historyArray.slice(-10));
     });
     return () => unsubscribe();
   }, []);
@@ -124,40 +126,11 @@ export default function Home() {
 
   const handleLogout = async () => {
     try {
-      logout(); // Redirect ke tabs setelah login
+      logout();
+      unregisterIndieDevice("minyak_ok2004", 29958, "DWbdXJaDAApTWVofAJH8Ie");
     } catch (error: any) {
       Alert.alert("Login Failed", error.message);
     }
-  };
-
-  const chartDataRGB = {
-    labels: ["R", "G", "B"],
-    datasets: [
-      {
-        data: [data.r, data.g, data.b],
-        color: (opacity = 1) => `rgba(255, 99, 71, ${opacity})`, // Red line
-      },
-    ],
-  };
-
-  const chartDataPh = {
-    labels: ["PH"], // Label as "1", "2", "3", ...
-    datasets: [
-      {
-        data: [data.ph],
-        color: (opacity = 1) => `rgba(50, 205, 50, ${opacity})`, // Green line
-      },
-    ],
-  };
-
-  const chartDataLdr = {
-    labels: ["LDR"], // Label as "1", "2", "3", ...
-    datasets: [
-      {
-        data: [data.ldr],
-        color: (opacity = 1) => `rgba(135, 206, 250, ${opacity})`, // Light blue line
-      },
-    ],
   };
 
   const handleDeleteRiwayat = (id: string) => {
@@ -192,103 +165,127 @@ export default function Home() {
         </View>
         <View style={styles.section}>
           <Button
-            title={`Status Minyak: ${data.status || "Unknown"}`}
+            title={`Status Minyak: ${data?.status || "belum ada"}`}
             color="red"
             disabled
           />
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.text}>Grafik RGB</Text>
-        <LineChart
-          data={chartDataRGB}
-          width={Dimensions.get("window").width - 40}
-          height={220}
-          chartConfig={{
-            backgroundColor: "#e26a00",
-            backgroundGradientFrom: "#fb8c00",
-            backgroundGradientTo: "#ffa726",
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            style: {
-              borderRadius: 16,
-            },
-            propsForDots: {
-              r: "6",
-              strokeWidth: "2",
-              stroke: "#ffa726",
-            },
-          }}
-          bezier
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-        />
-      </View>
+      {data?.status === "tidak layak" && (
+        <View style={styles.warningSection}>
+          <Text style={styles.warningText}>
+            ⚠️ Minyak anda sudah beberapa kali pakai, segera ganti.
+          </Text>
+        </View>
+      )}
 
-      <View style={styles.section}>
-        <Text style={styles.text}>Grafik PH</Text>
-        <LineChart
-          data={chartDataPh}
-          width={Dimensions.get("window").width - 40}
-          height={220}
-          chartConfig={{
-            backgroundColor: "#e26a00",
-            backgroundGradientFrom: "#fb8c00",
-            backgroundGradientTo: "#ffa726",
-            decimalPlaces: 1,
+      {history.length > 0 && (
+        <>
+          {/* Grafik RGB */}
+          <View style={styles.chartSection}>
+            <Text style={styles.chartText}>Grafik RGB</Text>
+            <LineChart
+              data={chartHistory.map((item) => ({ value: item.r }))}
+              color1="red"
+              data2={chartHistory.map((item) => ({ value: item.g }))}
+              color2="green"
+              data3={chartHistory.map((item) => ({ value: item.b }))}
+              color3="blue"
+              thickness={3}
+              dataPointsColor1="#3B82F6"
+              dataPointsColor2="#10B981"
+              dataPointsColor3="#F59E0B"
+              width={280}
+              backgroundColor="#F0F9FF"
+              hideRules
+              isAnimated
+              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+            />
 
-            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            style: {
-              borderRadius: 16,
-            },
-            propsForDots: {
-              r: "6",
-              strokeWidth: "2",
-              stroke: "#ffa726",
-            },
-          }}
-          bezier
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-        />
-      </View>
+            <View style={styles.valuesRow}>
+              <Text style={styles.label}>R: {data ? data?.r : 0}</Text>
+              <Text style={styles.label}>G: {data ? data?.g : 0}</Text>
+              <Text style={styles.label}>B: {data ? data?.b : 0}</Text>
+            </View>
 
-      <View style={styles.section}>
-        <Text style={styles.text}>Grafik LDR</Text>
-        <LineChart
-          data={chartDataLdr}
-          width={Dimensions.get("window").width - 40}
-          height={220}
-          chartConfig={{
-            backgroundColor: "#e26a00",
-            backgroundGradientFrom: "#fb8c00",
-            backgroundGradientTo: "#ffa726",
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-            style: {
-              borderRadius: 16,
-            },
-            propsForDots: {
-              r: "6",
-              strokeWidth: "2",
-              stroke: "#ffa726",
-            },
-          }}
-          bezier
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-          }}
-        />
-      </View>
+            <View style={styles.valuesRow}>
+              <Text style={styles.label}>
+                R Terakhir: {chartHistory[chartHistory.length - 1]?.r ?? "N/A"}
+              </Text>
+              <Text style={styles.label}>
+                G Terakhir: {chartHistory[chartHistory.length - 1]?.g ?? "N/A"}
+              </Text>
+              <Text style={styles.label}>
+                B Terakhir: {chartHistory[chartHistory.length - 1]?.b ?? "N/A"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Grafik pH */}
+          <View style={styles.chartSection}>
+            <Text style={styles.chartText}>Grafik pH</Text>
+            <LineChart
+              data={chartHistory.map((item) => ({ value: item.ph }))}
+              color="#F59E0B"
+              thickness={3}
+              dataPointsColor="#FBBF24"
+              width={280}
+              backgroundColor="#FFFBEB"
+              hideRules
+              isAnimated
+              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+            />
+            <Text style={styles.label}>
+              pH: {data ? data.ph : 0}
+            </Text>
+            <Text style={styles.label}>
+              pH Terakhir: {chartHistory[chartHistory.length - 1]?.ph ?? "N/A"}
+            </Text>
+          </View>
+
+          {/* Grafik LDR */}
+          <View style={styles.chartSection}>
+            <Text style={styles.chartText}>Grafik LDR</Text>
+            <LineChart
+              data={chartHistory.map((item) => ({ value: item.ldr }))}
+              color="#EF4444"
+              thickness={3}
+              dataPointsColor="black"
+              width={280}
+              backgroundColor="#FEF2F2"
+              hideRules
+              isAnimated
+              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+            />
+            <Text style={styles.label}>
+              LDR: {" "}
+              {data ? data?.ldr : 0}
+            </Text>
+            <Text style={styles.label}>
+              LDR Terakhir:{" "}
+              {chartHistory[chartHistory.length - 1]?.ldr ?? "N/A"}
+            </Text>
+          </View>
+        </>
+      )}
+
+      {chartHistory.length === 0 && (
+        <View style={styles.noDataContainer}>
+          <Text style={styles.noDataText}>
+            Tidak ada data riwayat untuk grafik
+          </Text>
+        </View>
+      )}
+
+      {!data && (
+        <View style={styles.noDataContainer}>
+          <Text style={styles.noDataText}>Data tidak tersedia</Text>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.text}>Riwayat Pembacaan</Text>
@@ -302,7 +299,7 @@ export default function Home() {
                 LDR: {item.ldr}, pH: {item.ph}
               </Text>
               <Text>Status: {item.status}</Text>
-              <Text>Time: {new Date(item.timestamp).toLocaleString()}</Text>
+              <Text>Time: {item.timestamp}</Text>
             </View>
             <View style={{ marginTop: 20 }}>
               <TouchableOpacity onPress={() => handleDeleteRiwayat(item.id)}>
@@ -313,46 +310,9 @@ export default function Home() {
         ))}
       </View>
 
-      <View style={styles.section}>
+      <View style={styles.logoutContainer}>
         <Button title="logout" onPress={handleLogout} />
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: "#f5f5f5",
-  },
-  section: {
-    marginBottom: 20,
-  },
-  text: {
-    fontSize: 18,
-    marginVertical: 10,
-  },
-  historyItem: {
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 8,
-    marginVertical: 5,
-    elevation: 2,
-    flex: 1,
-    flexDirection: "row",
-  },
-  historyContent: {
-    flex: 1,
-  },
-  headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-  },
-  headerText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-});

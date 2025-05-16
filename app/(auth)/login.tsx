@@ -1,7 +1,9 @@
 import { AuthContext } from "@/context/auth-context";
 import { useRouter } from "expo-router";
+import { registerIndieID } from 'native-notify';
 import React, { useContext, useState } from "react";
 import { Alert, Button, StyleSheet, Text, TextInput, View } from "react-native";
+
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -13,7 +15,8 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       await login(email, password);
-      router.replace("/(pages)"); // Mengarahkan ke halaman utama setelah login
+      router.replace("/(pages)");
+      registerIndieID('minyak_ok2004', 29958, 'DWbdXJaDAApTWVofAJH8Ie');
     } catch (error: any) {
       Alert.alert("Login Failed", error.message);
     }
@@ -28,6 +31,7 @@ export default function LoginScreen() {
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
+        placeholderTextColor="#888" // ← abu-abu
         autoCapitalize="none"
       />
       <TextInput
@@ -35,9 +39,10 @@ export default function LoginScreen() {
         placeholder="Password"
         value={password}
         onChangeText={setPassword}
+          placeholderTextColor="#888" // ← abu-abu
         secureTextEntry
       />
-      <Button title="Login" onPress={handleLogin} color="green" />
+      <Button title="Login" onPress={handleLogin} />
     </View>
   );
 }

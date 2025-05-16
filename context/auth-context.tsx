@@ -6,6 +6,8 @@ import {
     User,
 } from "firebase/auth";
 import React, { createContext, ReactNode, useEffect, useState } from "react";
+
+
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
