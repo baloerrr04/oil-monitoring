@@ -73,6 +73,7 @@ const CustomStyles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     color: '#374151',
+    textAlign: "center"
   },
   valuesRow: {
     flexDirection: 'row',

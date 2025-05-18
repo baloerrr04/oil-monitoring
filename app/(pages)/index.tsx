@@ -1,6 +1,9 @@
+import FocusToast from "@/components/focus-toast";
 import { AuthContext } from "@/context/auth-context";
 import { database } from "@/lib/firebase";
 import { Riwayat, RiwayatData } from "@/lib/types";
+import { formattedTime } from "@/lib/utils/format-time";
+import { getStatusText } from "@/lib/utils/get-status-helper";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import { onValue, push, ref, remove, set } from "firebase/database";
@@ -31,8 +34,10 @@ export default function Home() {
   const [chartHistory, setChartHistory] = useState<Riwayat[]>([]);
   const [phSeries, setPhSeries] = useState<number[]>([]);
   const [ldrSeries, setLdrSeries] = useState<number[]>([]);
+  const [focusedValue, setFocusedValue] = useState<number | null>(null);
   const { logout } = useContext(AuthContext);
   const notifiedRef = useRef(false);
+  const [timeoutId, setTimeoutId] = useState<number | null>(null);
 
   registerNNPushToken(29958, "DWbdXJaDAApTWVofAJH8Ie");
 
@@ -114,7 +119,7 @@ export default function Home() {
           }))
         : [];
       setHistory(historyArray);
-      setChartHistory(historyArray.slice(-10));
+      setChartHistory(historyArray);
     });
     return () => unsubscribe();
   }, []);
@@ -138,181 +143,262 @@ export default function Home() {
     remove(riwayatEntryRef);
   };
 
+  const handleFocus = (item: { value: number }) => {
+    setFocusedValue(item.value);
+
+    if (timeoutId) clearTimeout(timeoutId);
+
+    const id = setTimeout(() => setFocusedValue(null), 1500);
+    setTimeoutId(id);
+  };
+
+  const reversedChartHistory = chartHistory.slice().reverse();
+
   return (
-    <ScrollView style={styles.container}>
-      <View
-        style={{
-          flex: 1,
-          flexDirection: "row",
-          justifyContent: "space-between",
-        }}
-      >
+    <View style={{ flex: 1 }}>
+      <ScrollView style={styles.container}>
+        <View
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={styles.section}>
+            <Button
+              title="Uji Minyak"
+              color="green"
+              onPress={handleUjiMinyak}
+            />
+            <View style={{ marginVertical: 10, alignItems: "center" }}>
+              <Text style={{ fontSize: 18 }}>
+                Status:{" "}
+                <Text
+                  style={{
+                    color: alatStatus === "on" ? "green" : "red",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {alatStatus === "on" ? "ON" : "OFF"}
+                </Text>
+              </Text>
+            </View>
+          </View>
+          <View style={styles.section}>
+            <Button
+              title={`Status Minyak: \n${getStatusText(data?.status)}`}
+              color="red"
+              disabled
+            />
+          </View>
+        </View>
+
+        {data?.status === "tidak layak" && (
+          <View style={styles.warningSection}>
+            <Text style={styles.warningText}>
+              ⚠️ Minyak anda sudah beberapa kali pakai, segera ganti.
+            </Text>
+          </View>
+        )}
+
+        {history.length > 0 && (
+          <>
+            {/* Grafik RGB */}
+            <View style={styles.chartSection}>
+              <Text style={styles.chartText}>Grafik Perubahan Warna RGB</Text>
+              <LineChart
+                data={reversedChartHistory.map((item, index) => ({
+                  value: item.r,
+                  dataPointText: (index + 1).toString(),
+                }))}
+                color1="red"
+                data2={reversedChartHistory.map((item, index) => ({
+                  value: item.g,
+                  dataPointText: (index + 1).toString(),
+                }))}
+                color2="green"
+                data3={reversedChartHistory.map((item, index) => ({
+                  value: item.b,
+                  dataPointText: (index + 1).toString(),
+                }))}
+                color3="blue"
+                thickness={3}
+                dataPointsColor1="red"
+                dataPointsColor2="green"
+                dataPointsColor3="blue"
+                width={280}
+                backgroundColor="#F0F9FF"
+                hideRules
+                isAnimated
+                yAxisLabelWidth={40}
+                xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+                yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+                focusEnabled={true}
+                focusProximity={30} // default biasanya cukup 30
+                delayBeforeUnFocus={1000} // titik fokus akan hilang setelah 1 detik
+                unFocusOnPressOut={false} // biar tetap fokus sampai delay habis
+                focusedDataPointColor="black"
+                focusedDataPointRadius={3}
+                focusedDataPointShape="circle"
+                onFocus={handleFocus}
+              />
+
+              <View style={styles.valuesRow}>
+                <Text style={styles.label}>R: {data ? data?.r : 0}</Text>
+                <Text style={styles.label}>G: {data ? data?.g : 0}</Text>
+                <Text style={styles.label}>B: {data ? data?.b : 0}</Text>
+              </View>
+
+              <View style={styles.valuesRow}>
+                <Text style={styles.label}>
+                  Kualitas: {getStatusText(data?.status)}
+                </Text>
+              </View>
+
+              <View style={styles.valuesRow}>
+                <Text style={[styles.label, { fontSize: 12 }]}>
+                  Note: perubahan pada RGB dapat mengindikasi kontaminasi atau
+                  perubahan kualitas
+                </Text>
+              </View>
+            </View>
+
+            {/* Grafik pH */}
+            <View style={styles.chartSection}>
+              <Text style={styles.chartText}>Grafik Tingkat Asam pH</Text>
+              <LineChart
+                data={chartHistory.map((item, index) => ({
+                  value: item.ph,
+                  dataPointText: (index + 1).toString(),
+                }))}
+                color="#F59E0B"
+                thickness={3}
+                dataPointsColor="#FBBF24"
+                width={280}
+                backgroundColor="#FFFBEB"
+                hideRules
+                isAnimated
+                xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+                yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+                focusEnabled={true}
+                focusProximity={30} // default biasanya cukup 30
+                delayBeforeUnFocus={1000} // titik fokus akan hilang setelah 1 detik
+                unFocusOnPressOut={false} // biar tetap fokus sampai delay habis
+                focusedDataPointColor="black"
+                focusedDataPointRadius={3}
+                focusedDataPointShape="circle"
+                onFocus={handleFocus}
+              />
+              <Text style={styles.label}>pH: {data ? data.ph : 0}</Text>
+
+              <View style={styles.valuesRow}>
+                <Text style={styles.label}>
+                  Kualitas: {getStatusText(data?.status)}
+                </Text>
+              </View>
+
+              <View style={styles.valuesRow}>
+                <Text style={[styles.label, { fontSize: 12 }]}>
+                  Note: pH dibawah normal dapat menunjukkan oksidasi
+                </Text>
+              </View>
+            </View>
+
+            {/* Grafik LDR */}
+            <View style={styles.chartSection}>
+              <Text style={styles.chartText}>Grafik Intensitas Cahaya LDR</Text>
+              <LineChart
+                data={chartHistory.map((item, index) => ({
+                  value: item.ldr,
+                  dataPointText: (index + 1).toString(),
+                }))}
+                color="#EF4444"
+                thickness={3}
+                dataPointsColor="black"
+                width={280}
+                backgroundColor="#FEF2F2"
+                hideRules
+                isAnimated
+                xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
+                yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
+                dataPointsColor1="red"
+                focusEnabled={true}
+                focusProximity={30} // default biasanya cukup 30
+                delayBeforeUnFocus={1000} // titik fokus akan hilang setelah 1 detik
+                unFocusOnPressOut={false} // biar tetap fokus sampai delay habis
+                focusedDataPointColor="black"
+                focusedDataPointRadius={3}
+                focusedDataPointShape="circle"
+                onFocus={handleFocus}
+              />
+              <Text style={styles.label}>LDR: {data ? data?.ldr : 0}</Text>
+
+              <View style={styles.valuesRow}>
+                <Text style={styles.label}>
+                  Kualitas: {getStatusText(data?.status)}
+                </Text>
+              </View>
+
+              <View style={styles.valuesRow}>
+                <Text style={[styles.label, { fontSize: 12 }]}>
+                  Note: Nilai LDR tinggi menandakan minyak telah keruh akibat
+                  penggunaan berulang
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {chartHistory.length === 0 && (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>
+              Tidak ada data riwayat untuk grafik
+            </Text>
+          </View>
+        )}
+
+        {!data && (
+          <View style={styles.noDataContainer}>
+            <Text style={styles.noDataText}>Data tidak tersedia</Text>
+          </View>
+        )}
+
         <View style={styles.section}>
-          <Button title="Uji Minyak" color="green" onPress={handleUjiMinyak} />
-          <View style={{ marginVertical: 10, alignItems: "center" }}>
-            <Text style={{ fontSize: 18 }}>
-              Status:{" "}
-              <Text
-                style={{
-                  color: alatStatus === "on" ? "green" : "red",
-                  fontWeight: "bold",
-                }}
-              >
-                {alatStatus === "on" ? "ON" : "OFF"}
-              </Text>
-            </Text>
-          </View>
+          <Text style={styles.text}>Riwayat Pembacaan</Text>
+          {history
+            .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
+            .map((item, idx, arr) => (
+              <View key={item.id} style={styles.historyItem}>
+                <View style={styles.historyContent}>
+                  <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
+                    {arr.length - idx}.
+                  </Text>
+                  <Text>
+                    R: {item.r}, G: {item.g}, B: {item.b}
+                  </Text>
+                  <Text>
+                    LDR: {item.ldr}, pH: {item.ph}
+                  </Text>
+                  <Text>Status: {item.status}</Text>
+                  <Text>Time: {formattedTime(item.timestamp)}</Text>
+                </View>
+                <View style={{ marginTop: 20 }}>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteRiwayat(item.id)}
+                  >
+                    <Ionicons name="trash" size={24} color="red" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
         </View>
-        <View style={styles.section}>
-          <Button
-            title={`Status Minyak: ${data?.status || "belum ada"}`}
-            color="red"
-            disabled
-          />
+
+        <View style={styles.logoutContainer}>
+          <Button title="logout" onPress={handleLogout} />
         </View>
-      </View>
+      </ScrollView>
 
-      {data?.status === "tidak layak" && (
-        <View style={styles.warningSection}>
-          <Text style={styles.warningText}>
-            ⚠️ Minyak anda sudah beberapa kali pakai, segera ganti.
-          </Text>
-        </View>
-      )}
-
-      {history.length > 0 && (
-        <>
-          {/* Grafik RGB */}
-          <View style={styles.chartSection}>
-            <Text style={styles.chartText}>Grafik RGB</Text>
-            <LineChart
-              data={chartHistory.map((item) => ({ value: item.r }))}
-              color1="red"
-              data2={chartHistory.map((item) => ({ value: item.g }))}
-              color2="green"
-              data3={chartHistory.map((item) => ({ value: item.b }))}
-              color3="blue"
-              thickness={3}
-              dataPointsColor1="#3B82F6"
-              dataPointsColor2="#10B981"
-              dataPointsColor3="#F59E0B"
-              width={280}
-              backgroundColor="#F0F9FF"
-              hideRules
-              isAnimated
-              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
-              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
-            />
-
-            <View style={styles.valuesRow}>
-              <Text style={styles.label}>R: {data ? data?.r : 0}</Text>
-              <Text style={styles.label}>G: {data ? data?.g : 0}</Text>
-              <Text style={styles.label}>B: {data ? data?.b : 0}</Text>
-            </View>
-
-            <View style={styles.valuesRow}>
-              <Text style={styles.label}>
-                R Terakhir: {chartHistory[chartHistory.length - 1]?.r ?? "N/A"}
-              </Text>
-              <Text style={styles.label}>
-                G Terakhir: {chartHistory[chartHistory.length - 1]?.g ?? "N/A"}
-              </Text>
-              <Text style={styles.label}>
-                B Terakhir: {chartHistory[chartHistory.length - 1]?.b ?? "N/A"}
-              </Text>
-            </View>
-          </View>
-
-          {/* Grafik pH */}
-          <View style={styles.chartSection}>
-            <Text style={styles.chartText}>Grafik pH</Text>
-            <LineChart
-              data={chartHistory.map((item) => ({ value: item.ph }))}
-              color="#F59E0B"
-              thickness={3}
-              dataPointsColor="#FBBF24"
-              width={280}
-              backgroundColor="#FFFBEB"
-              hideRules
-              isAnimated
-              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
-              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
-            />
-            <Text style={styles.label}>
-              pH: {data ? data.ph : 0}
-            </Text>
-            <Text style={styles.label}>
-              pH Terakhir: {chartHistory[chartHistory.length - 1]?.ph ?? "N/A"}
-            </Text>
-          </View>
-
-          {/* Grafik LDR */}
-          <View style={styles.chartSection}>
-            <Text style={styles.chartText}>Grafik LDR</Text>
-            <LineChart
-              data={chartHistory.map((item) => ({ value: item.ldr }))}
-              color="#EF4444"
-              thickness={3}
-              dataPointsColor="black"
-              width={280}
-              backgroundColor="#FEF2F2"
-              hideRules
-              isAnimated
-              xAxisLabelTextStyle={{ fontSize: 10, color: "#374151" }}
-              yAxisTextStyle={{ fontSize: 10, color: "#374151" }}
-            />
-            <Text style={styles.label}>
-              LDR: {" "}
-              {data ? data?.ldr : 0}
-            </Text>
-            <Text style={styles.label}>
-              LDR Terakhir:{" "}
-              {chartHistory[chartHistory.length - 1]?.ldr ?? "N/A"}
-            </Text>
-          </View>
-        </>
-      )}
-
-      {chartHistory.length === 0 && (
-        <View style={styles.noDataContainer}>
-          <Text style={styles.noDataText}>
-            Tidak ada data riwayat untuk grafik
-          </Text>
-        </View>
-      )}
-
-      {!data && (
-        <View style={styles.noDataContainer}>
-          <Text style={styles.noDataText}>Data tidak tersedia</Text>
-        </View>
-      )}
-
-      <View style={styles.section}>
-        <Text style={styles.text}>Riwayat Pembacaan</Text>
-        {history.map((item) => (
-          <View key={item.id} style={styles.historyItem}>
-            <View style={styles.historyContent}>
-              <Text>
-                R: {item.r}, G: {item.g}, B: {item.b}
-              </Text>
-              <Text>
-                LDR: {item.ldr}, pH: {item.ph}
-              </Text>
-              <Text>Status: {item.status}</Text>
-              <Text>Time: {item.timestamp}</Text>
-            </View>
-            <View style={{ marginTop: 20 }}>
-              <TouchableOpacity onPress={() => handleDeleteRiwayat(item.id)}>
-                <Ionicons name="trash" size={24} color="red" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.logoutContainer}>
-        <Button title="logout" onPress={handleLogout} />
-      </View>
-    </ScrollView>
+      {focusedValue !== null && <FocusToast value={focusedValue} />}
+    </View>
   );
 }
