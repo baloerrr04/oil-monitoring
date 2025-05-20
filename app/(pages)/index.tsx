@@ -1,158 +1,36 @@
-import FocusToast from "@/components/focus-toast";
-import { AuthContext } from "@/contexts/auth-context";
-import { database } from "@/lib/firebase";
-import { Riwayat, RiwayatData } from "@/lib/types";
-import { formattedTime } from "@/lib/utils/format-time";
+import FocusToast from "@/app/(pages)/components/focus-toast";
+import HistorySection from "@/app/(pages)/components/history-section";
+import useOilMonitoring from "@/hooks/use-oil-monitoring";
+import useWarningToast from "@/hooks/use-warning-toast";
 import { getStatusText } from "@/lib/utils/get-status-helper";
-import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
-import { onValue, push, ref, remove, set } from "firebase/database";
-import registerNNPushToken, { unregisterIndieDevice } from "native-notify";
-import React, { useContext, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Button,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useEffect } from "react";
+import { Button, ScrollView, Text, View } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
+import WarningToast from "./components/warning-toast";
 import styles from "./css/style";
 
-export default function Home() {
-  const [alatStatus, setAlatStatus] = useState("off");
-  const [data, setData] = useState({
-    r: 0,
-    g: 0,
-    b: 0,
-    ldr: 0,
-    ph: 0,
-    status: "",
-  });
-  const [history, setHistory] = useState<Riwayat[]>([]);
-  const [chartHistory, setChartHistory] = useState<Riwayat[]>([]);
-  const [phSeries, setPhSeries] = useState<number[]>([]);
-  const [ldrSeries, setLdrSeries] = useState<number[]>([]);
-  const [focusedValue, setFocusedValue] = useState<number | null>(null);
-  const { logout } = useContext(AuthContext);
-  const notifiedRef = useRef(false);
-  const [timeoutId, setTimeoutId] = useState<number | null>(null);
-
-  registerNNPushToken(29958, "DWbdXJaDAApTWVofAJH8Ie");
-
-  useEffect(() => {
-    const alatRef = ref(database, "alat");
-    const unsubscribe = onValue(alatRef, (snapshot) => {
-      setAlatStatus(snapshot.val() || "off");
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const dataRef = ref(database, "data");
-    let timeout: NodeJS.Timeout | null = null;
-
-    const unsubscribe = onValue(dataRef, (snapshot) => {
-      const newData = snapshot.val() || {
-        r: 0,
-        g: 0,
-        b: 0,
-        ldr: 0,
-        ph: 0,
-        status: "",
-      };
-      setData(newData);
-
-      const statusLower = newData.status.toLowerCase();
-      if (statusLower === "tidak layak" && !notifiedRef.current) {
-        axios.post("https://app.nativenotify.com/api/indie/notification", {
-          subID: "minyak_ok2004",
-          appId: 29958,
-          appToken: "DWbdXJaDAApTWVofAJH8Ie",
-          title: "Peringatan Minyak",
-          message: "Minyak anda sudah beberapa kali pakai, segera ganti",
-        });
-        notifiedRef.current = true;
-
-        setTimeout(() => {
-          notifiedRef.current = false;
-        }, 5 * 60 * 1000);
-      }
-
-      console.log(new Date("2025-05-12T07:03:13.496Z").toLocaleString());
-
-      if (alatStatus === "on") {
-        setPhSeries((prev) => [...prev, newData.ph].slice(-12));
-        setLdrSeries((prev) => [...prev, newData.ldr].slice(-12));
-
-        const timeout = setTimeout(() => {
-          const riwayatRef = ref(database, "riwayat");
-          push(riwayatRef, {
-            ...newData,
-            timestamp: new Date().toISOString(),
-          }).then(() => {
-            set(ref(database, "alat"), "off");
-          });
-        }, 60000);
-      } else {
-        setPhSeries([]);
-        setLdrSeries([]);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      if (timeout) clearTimeout(timeout); // ✅ Hapus timeout saat unmount
-    };
-  }, []);
-
-  // Listen to riwayat updates
-  useEffect(() => {
-    const riwayatRef = ref(database, "riwayat");
-    const unsubscribe = onValue(riwayatRef, (snapshot) => {
-      const riwayatData: Record<string, RiwayatData> | null = snapshot.val();
-      const historyArray: Riwayat[] = riwayatData
-        ? Object.entries(riwayatData).map(([id, value]) => ({
-            id,
-            ...value,
-          }))
-        : [];
-      setHistory(historyArray);
-      setChartHistory(historyArray);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleUjiMinyak = () => {
-    const newStatus = alatStatus === "off" ? "on" : "off";
-    set(ref(database, "alat"), newStatus);
-  };
-
-  const handleLogout = async () => {
-    try {
-      logout();
-      unregisterIndieDevice("minyak_ok2004", 29958, "DWbdXJaDAApTWVofAJH8Ie");
-    } catch (error: any) {
-      Alert.alert("Login Failed", error.message);
-    }
-  };
-
-  const handleDeleteRiwayat = (id: string) => {
-    const riwayatEntryRef = ref(database, `riwayat/${id}`);
-    remove(riwayatEntryRef);
-  };
-
-  const handleFocus = (item: { value: number }) => {
-    setFocusedValue(item.value);
-
-    if (timeoutId) clearTimeout(timeoutId);
-
-    const id = setTimeout(() => setFocusedValue(null), 1500);
-    setTimeoutId(id);
-  };
+const App: React.FC = () => {
+  const {
+    alatStatus,
+    data,
+    history,
+    chartHistory,
+    focusedValue,
+    handleUjiMinyak,
+    handleDeleteRiwayat,
+    handleFocus,
+    handleLogout,
+  } = useOilMonitoring();
 
   const reversedChartHistory = chartHistory.slice().reverse();
+
+ const { handleStatusChange, showWarning } = useWarningToast();
+
+  useEffect(() => {
+    console.log('Current status:', data?.status, 'Show warning:', showWarning); // Debugging
+    handleStatusChange(data?.status || '');
+  }, [data?.status, handleStatusChange]);
+ 
 
   return (
     <View style={{ flex: 1 }}>
@@ -363,42 +241,24 @@ export default function Home() {
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.text}>Riwayat Pembacaan</Text>
-          {history
-            .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
-            .map((item, idx, arr) => (
-              <View key={item.id} style={styles.historyItem}>
-                <View style={styles.historyContent}>
-                  <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
-                    {arr.length - idx}.
-                  </Text>
-                  <Text>
-                    R: {item.r}, G: {item.g}, B: {item.b}
-                  </Text>
-                  <Text>
-                    LDR: {item.ldr}, pH: {item.ph}
-                  </Text>
-                  <Text>Status: {item.status}</Text>
-                  <Text>Time: {formattedTime(item.timestamp)}</Text>
-                </View>
-                <View style={{ marginTop: 20 }}>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteRiwayat(item.id)}
-                  >
-                    <Ionicons name="trash" size={24} color="red" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-        </View>
+        <HistorySection
+          history={history}
+          handleDeleteRiwayat={handleDeleteRiwayat}
+        />
 
         <View style={styles.logoutContainer}>
-          <Button title="logout" onPress={handleLogout} />
+          <Button title="Logout" onPress={handleLogout} />
         </View>
       </ScrollView>
 
       {focusedValue !== null && <FocusToast value={focusedValue} />}
+
+        <WarningToast
+          message="Minyak anda sudah beberapa kali pakai, segera ganti."
+          visible={showWarning}
+        />
     </View>
   );
-}
+};
+
+export default App;

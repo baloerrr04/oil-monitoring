@@ -11,7 +11,7 @@ const CustomStyles = StyleSheet.create({
     marginBottom: 5,
   },
   chartSection: {
-    // flex: 1,
+    flex: 1,
     marginVertical: 12,
     padding: 12,
     borderRadius: 12,
@@ -94,6 +94,19 @@ const CustomStyles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
+  // CustomStyles.ts
+warningToastSection: {
+  backgroundColor: '#FEF3C7',
+  borderLeftWidth: 5,
+  borderLeftColor: '#F59E0B',
+  padding: 12,
+  borderRadius: 8,
+  marginVertical: 10,
+  position: 'absolute', // Tambahan untuk posisi toast
+  bottom: 20,
+  left: 20,
+  right: 20,
+},
 });
 
 export default CustomStyles;
