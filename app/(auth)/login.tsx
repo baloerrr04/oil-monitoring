@@ -1,4 +1,4 @@
-import { AuthContext } from "@/context/auth-context";
+import { AuthContext } from "@/contexts/auth-context";
 import { useRouter } from "expo-router";
 import { registerIndieID } from 'native-notify';
 import React, { useContext, useState } from "react";

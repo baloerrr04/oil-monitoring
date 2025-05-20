@@ -1,5 +1,5 @@
 import FocusToast from "@/components/focus-toast";
-import { AuthContext } from "@/context/auth-context";
+import { AuthContext } from "@/contexts/auth-context";
 import { database } from "@/lib/firebase";
 import { Riwayat, RiwayatData } from "@/lib/types";
 import { formattedTime } from "@/lib/utils/format-time";
@@ -193,7 +193,7 @@ export default function Home() {
           </View>
         </View>
 
-        {data?.status === "tidak layak" && (
+        {data?.status.toLowerCase() === "tidak layak" && (
           <View style={styles.warningSection}>
             <Text style={styles.warningText}>
               ⚠️ Minyak anda sudah beberapa kali pakai, segera ganti.
